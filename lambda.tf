@@ -14,25 +14,41 @@ resource "aws_iam_role" "lambda_role" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "lambda_basic_execution" {
-  role       = aws_iam_role.lambda_role.id
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-}
-
-# Update S3 access to be more specific
-resource "aws_iam_role_policy_attachment" "lambda_s3_access" {
-  role       = aws_iam_role.lambda_role.id
-  policy_arn = aws_iam_policy.lambda_s3_policy.arn
-}
-
-# Create a custom policy for S3 access
-resource "aws_iam_policy" "lambda_s3_policy" {
-  name        = "LambdaS3Policy"
-  description = "IAM policy for Lambda S3 access"
+# IAM Policy for Lambda
+resource "aws_iam_policy" "lambda_policy" {
+  name        = "LambdaExecutionPolicy"
+  description = "IAM policy for Lambda to access AWS services"
 
   policy = jsonencode({
-    Version = "2012-10-17"
+    Version = "2012-10-17",
     Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogGroup",
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+        Resource = "arn:aws:logs:*:*:*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "firehose:PutRecord",
+          "firehose:PutRecordBatch"
+        ]
+        Resource = "*" # Replace with specific ARNs for tighter security
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes"
+        ]
+        Resource = "*" # Replace with specific ARNs for tighter security
+      },
       {
         Effect = "Allow"
         Action = "s3:*"
@@ -40,38 +56,45 @@ resource "aws_iam_policy" "lambda_s3_policy" {
           "${aws_s3_bucket.app_bucket.arn}",
           "${aws_s3_bucket.app_bucket.arn}/*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:GetItem",
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:Query",
+          "dynamodb:Scan"
+        ]
+        Resource = aws_dynamodb_table.my_table.arn
       }
     ]
   })
 }
 
-# Lambda Function
-resource "aws_lambda_function" "etl_function" {
-  function_name = "my-etl-lambda-function"
-  role          = aws_iam_role.lambda_role.arn
-  handler       = "lambda_function.lambda_handler"
-  runtime       = "python3.8"
+resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {
+  role       = aws_iam_role.lambda_role.name
+  policy_arn = aws_iam_policy.lambda_policy.arn
+}
+  resource "aws_lambda_function" "etl_function" {
+    function_name = "my-etl-lambda-function"
+    role          = aws_iam_role.lambda_role.arn
+    handler       = "lambda_function.lambda_handler"
+    runtime       = "python3.8"
 
-  filename         = data.archive_file.lambda_zip.output_path
-  source_code_hash = data.archive_file.lambda_zip.output_base64sha256
+    filename         = data.archive_file.lambda_packages["etl_function"].output_path
+    source_code_hash = data.archive_file.lambda_packages["etl_function"].output_base64sha256
 
-  environment {
-    variables = {
-      OUTPUT_BUCKET = var.app_bucket_name
-      DYNAMODB_TABLE   = aws_dynamodb_table.my_table.name 
+    environment {
+      variables = {
+        OUTPUT_BUCKET = var.app_bucket_name
+        DYNAMODB_TABLE = aws_dynamodb_table.my_table.name 
+      }
     }
+
+    depends_on = [null_resource.package_lambdas]
   }
-
-  # Other settings as needed
-}
-
-# Create a zip file for the Lambda function
-data "archive_file" "lambda_zip" {
-  type        = "zip"
-  source_dir  = "${path.module}/lambda_function"
-  output_path = "${path.module}/function.zip"
-}
-
 # S3 Bucket Notification to Trigger Lambda
 resource "aws_s3_bucket_notification" "input_bucket_notification" {
   bucket = var.app_bucket_name
@@ -108,32 +131,36 @@ resource "aws_dynamodb_table" "my_table" {
   # Other configurations as needed
 }
 
-# IAM Policy for DynamoDB Access
-resource "aws_iam_policy" "lambda_dynamodb_policy" {
-  name        = "LambdaDynamoDBPolicy"
-  description = "Policy for Lambda to access DynamoDB"
+resource "aws_lambda_function" "lambda_functions" {
+  for_each = local.scripts
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect = "Allow"
-        Action = [
-          "dynamodb:PutItem",
-          "dynamodb:GetItem",
-          "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:Query",
-          "dynamodb:Scan"
-        ]
-        Resource = aws_dynamodb_table.my_table.arn
-      }
-    ]
-  })
+  function_name = each.key
+  role          = aws_iam_role.lambda_role.arn
+  handler       = each.value.handler
+  runtime       = each.value.runtime
+
+  filename         = data.archive_file.lambda_packages[each.key].output_path
+  source_code_hash = data.archive_file.lambda_packages[each.key].output_base64sha256
+
+  depends_on = [
+    null_resource.package_lambdas
+  ]
 }
 
-# Attach the policy to the Lambda execution role
-resource "aws_iam_role_policy_attachment" "lambda_dynamodb_policy_attachment" {
-  role       = aws_iam_role.lambda_role.name
-  policy_arn = aws_iam_policy.lambda_dynamodb_policy.arn
+
+resource "aws_lambda_event_source_mapping" "sqs_consumer_trigger" {
+  event_source_arn = aws_sqs_queue.order_queue.arn
+  function_name    = aws_lambda_function.lambda_functions["sqs_consumer"].function_name
+
+  batch_size = 10
+  enabled    = true
+}
+
+resource "aws_lambda_event_source_mapping" "kinesis_consumer_trigger" {
+  event_source_arn  = aws_kinesis_stream.example_stream.arn
+  function_name     = aws_lambda_function.lambda_functions["kinesis_consumer"].function_name
+
+  starting_position = "LATEST"
+  batch_size        = 100
+  enabled           = true
 }
