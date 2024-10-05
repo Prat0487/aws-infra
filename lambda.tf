@@ -77,24 +77,42 @@ resource "aws_iam_role_policy_attachment" "lambda_policy_attachment" {
   role       = aws_iam_role.lambda_role.name
   policy_arn = aws_iam_policy.lambda_policy.arn
 }
-  resource "aws_lambda_function" "etl_function" {
-    function_name = "my-etl-lambda-function"
-    role          = aws_iam_role.lambda_role.arn
-    handler       = "lambda_function.lambda_handler"
-    runtime       = "python3.8"
 
-    filename         = data.archive_file.lambda_packages["etl_function"].output_path
-    source_code_hash = data.archive_file.lambda_packages["etl_function"].output_base64sha256
+# DynamoDB Table
+resource "aws_dynamodb_table" "my_table" {
+  name           = "my-dynamodb-table"
+  billing_mode   = "PAY_PER_REQUEST"
+  hash_key       = "id"
 
-    environment {
-      variables = {
-        OUTPUT_BUCKET = var.app_bucket_name
-        DYNAMODB_TABLE = aws_dynamodb_table.my_table.name 
-      }
-    }
-
-    depends_on = [null_resource.package_lambdas]
+  attribute {
+    name = "id"
+    type = "S"
   }
+
+  # Other configurations as needed
+}
+
+# Commented out code:
+/*
+resource "aws_lambda_function" "etl_function" {
+  function_name = "my-etl-lambda-function"
+  role          = aws_iam_role.lambda_role.arn
+  handler       = "lambda_function.lambda_handler"
+  runtime       = "python3.8"
+
+  filename         = data.archive_file.lambda_packages["etl_function"].output_path
+  source_code_hash = data.archive_file.lambda_packages["etl_function"].output_base64sha256
+
+  environment {
+    variables = {
+      OUTPUT_BUCKET = var.app_bucket_name
+      DYNAMODB_TABLE = aws_dynamodb_table.my_table.name 
+    }
+  }
+
+  depends_on = [null_resource.package_lambdas]
+}
+
 # S3 Bucket Notification to Trigger Lambda
 resource "aws_s3_bucket_notification" "input_bucket_notification" {
   bucket = var.app_bucket_name
@@ -117,20 +135,6 @@ resource "aws_lambda_permission" "allow_s3_invoke" {
   source_arn    = aws_s3_bucket.app_bucket.arn
 }
 
-# DynamoDB Table
-resource "aws_dynamodb_table" "my_table" {
-  name           = "my-dynamodb-table"
-  billing_mode   = "PAY_PER_REQUEST"
-  hash_key       = "id"
-
-  attribute {
-    name = "id"
-    type = "S"
-  }
-
-  # Other configurations as needed
-}
-
 resource "aws_lambda_function" "lambda_functions" {
   for_each = local.scripts
 
@@ -146,7 +150,6 @@ resource "aws_lambda_function" "lambda_functions" {
     null_resource.package_lambdas
   ]
 }
-
 
 resource "aws_lambda_event_source_mapping" "sqs_consumer_trigger" {
   event_source_arn = aws_sqs_queue.order_queue.arn
@@ -164,3 +167,4 @@ resource "aws_lambda_event_source_mapping" "kinesis_consumer_trigger" {
   batch_size        = 100
   enabled           = true
 }
+*/

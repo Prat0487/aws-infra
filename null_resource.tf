@@ -45,14 +45,15 @@ resource "null_resource" "package_lambdas" {
     script_path = "${each.value.path}"
   }
 }
-*/
+
 
 resource "null_resource" "package_lambdas" {
   for_each = local.scripts
 
   provisioner "local-exec" {
-    command = "C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/package_lambda.ps1 -FunctionName 'sqs_producer' -FunctionPath './scripts/sqs_producer'"
-  }      
+    command = "C:\\Windows\\System32\\cmd.exe /C C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/package_lambda.ps1 -FunctionName '${each.key}' -FunctionPath '${each.value.path}'"
+  }
+     
 
 
   triggers = {
@@ -70,8 +71,6 @@ data "archive_file" "lambda_packages" {
   depends_on = [null_resource.package_lambdas]
 }
 
-
-/*
 resource "null_resource" "package_lambdas" {
   for_each = local.scripts
 

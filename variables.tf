@@ -50,3 +50,40 @@ variable "app_bucket_name" {
   description = "Name of the application bucket"
   default     = "app-bucket-2lz9r655"
 }
+
+variable "create_read_replicas" {
+  description = "Flag to determine whether to create read replicas"
+  type        = bool
+  default     = true
+}
+/*
+variable "db_username" {
+  description = "Database username"
+  type        = string
+}
+
+variable "db_password" {
+  description = "Database password"
+  type        = string
+  sensitive   = true
+}
+*/
+
+variable "vpc_id" {
+  description = "VPC ID"
+  default     = "vpc-0de37fbbc866cf6e7"
+}
+
+variable "terraform_role_arn" {
+  description = "ARN of the IAM role for Terraform"
+  type        = string
+  default     = "arn:aws:iam::014498640669:role/terraform-deploy"
+}
+
+variable "app_server_name" {
+  description = "Name of the application server"
+  type        = string
+  default     = "AppServerInstance"
+}
+
+
