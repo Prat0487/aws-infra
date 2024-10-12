@@ -80,10 +80,26 @@ variable "terraform_role_arn" {
   default     = "arn:aws:iam::014498640669:role/terraform-deploy"
 }
 
-variable "app_server_name" {
+variable "app_server_name_new" {
   description = "Name of the application server"
   type        = string
-  default     = "AppServerInstance"
+  default     = "AppServerNewInstance"
 }
 
+variable "app_name" {
+  description = "Name of the application"
+  type        = string
+  default     = "my-app"
+}
 
+variable "glue_database_name" {
+  type        = string
+  description = "Name of the Glue database"
+  default     = "your_default_glue_database_name"
+}
+
+variable "sample_data_file" {
+  type        = string
+  description = "Path to the sample data file"
+  default     = "data/employees.csv"
+}

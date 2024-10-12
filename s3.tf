@@ -74,3 +74,5 @@ resource "aws_s3_bucket_object" "error" {
   content_type = "text/html"
   depends_on = [aws_s3_bucket.static_site_bucket]
 }
+
+

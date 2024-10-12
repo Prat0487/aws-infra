@@ -94,3 +94,55 @@ resource "aws_glue_job" "example" {
 }
 */
 
+resource "aws_glue_catalog_database" "glue_database" {
+  name = var.glue_database_name
+}
+resource "aws_glue_catalog_table" "employees_table" {
+  database_name = aws_glue_catalog_database.glue_database.name
+  name          = "employees"
+
+  table_type = "EXTERNAL_TABLE"
+
+  parameters = {
+    "skip.header.line.count" = "1"
+    "classification"         = "csv"
+  }
+
+  storage_descriptor {
+    location      = "s3://${aws_s3_bucket.data_bucket.bucket}/"
+    input_format  = "org.apache.hadoop.mapred.TextInputFormat"
+    output_format = "org.apache.hadoop.hive.ql.io.IgnoreKeyTextOutputFormat"
+
+    ser_de_info {
+      name                  = "employees"
+      serialization_library = "org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe"
+
+      parameters = {
+        "field.delim" = ","
+      }
+    }
+
+    columns {
+      name = "employee_id"
+      type = "int"
+    }
+    columns {
+      name = "name"
+      type = "string"
+    }
+    columns {
+      name = "department"
+      type = "string"
+    }
+    columns {
+      name = "salary"
+      type = "int"
+    }
+  }
+}
+
+
+
+resource "aws_s3_bucket" "data_bucket" {
+  bucket = "your-unique-data-bucket-name"
+}

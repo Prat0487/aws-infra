@@ -1,4 +1,4 @@
-resource "aws_db_instance" "primary" {
+resource "aws_db_instance" "primary_new" {
   identifier             = "primary-db-instance"
   engine                 = "postgres"
   engine_version         = "14"
@@ -6,13 +6,13 @@ resource "aws_db_instance" "primary" {
   allocated_storage      = 20
   db_name                = "primarydb"
   username               = "prateek"
-  password               = "PraIbm@2024"
+  password               = "NewSecurePassword123!"
   parameter_group_name   = "default.postgres14"
   skip_final_snapshot    = true
   publicly_accessible    = true
-  backup_retention_period = 1  # Enable automated backups with 1 day retention
-  vpc_security_group_ids = [aws_security_group.rds_sg.id]
-  # Remove the db_subnet_group_name attribute
+  backup_retention_period = 1
+  vpc_security_group_ids = [aws_security_group.rds_sg_new.id]
+  db_subnet_group_name   = aws_db_subnet_group.rds_subnet_group.name
 
   tags = {
     Name = "PrimaryDB"
@@ -20,12 +20,28 @@ resource "aws_db_instance" "primary" {
 
   lifecycle {
     ignore_changes = [password]
+    prevent_destroy = true
   }
 }
-
+/*
 resource "aws_security_group" "rds_sg" {
   name        = "rds-security-group"
   description = "Security group for RDS instance"
+  vpc_id      = aws_vpc.main.id
+
+  ingress {
+    from_port   = 5432
+    to_port     = 5432
+    protocol    = "tcp"
+    cidr_blocks = ["203.192.251.11/32"]
+  }
+}
+*/
+
+resource "aws_security_group" "rds_sg_new" {
+  name        = "rds-ec2-security-group"
+  description = "Security group for RDS instance"
+  vpc_id      = var.vpc_id
 
   ingress {
     from_port   = 5432
@@ -37,7 +53,7 @@ resource "aws_security_group" "rds_sg" {
 
 resource "aws_db_subnet_group" "rds_subnet_group" {
   name       = "rds-subnet-group"
-  subnet_ids = ["subnet-03725068c7adfc3b8", "subnet-0abd514b027bac78c", "subnet-010cda0f685dbc159", "subnet-0836d3f68d5eb1fec", "subnet-0b410f7c1dcd82b46", "subnet-04d17f7336d7b99d6"]
+  subnet_ids = ["subnet-03725068c7adfc3b8", "subnet-0abd514b027bac78c"]
 
   tags = {
     Name = "RDS Subnet Group"
@@ -77,7 +93,7 @@ resource "aws_network_acl_association" "rds_nacl_association" {
 }
 
 resource "time_sleep" "wait_for_db" {
-  depends_on = [aws_db_instance.primary]
+  depends_on = [aws_db_instance.primary_new]
   create_duration = "5m"
 }
 
